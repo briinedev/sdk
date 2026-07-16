@@ -4,7 +4,7 @@
     "description": "TypeScript SDK for Briine Code Competition Agents",
     "license": "MIT",
     "author": "@briine",
-    "repository": "github:briinedev/briine-sdk",
+    "repository": "github:briinedev/sdk",
     "type": "module",
     "main": "dist/index.mjs",
     "types": "dist/index.d.ts",
