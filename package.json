@@ -1,0 +1,40 @@
+{
+    "name": "@briine/sdk",
+    "version": "0.0.1",
+    "description": "TypeScript SDK for Briine Code Competition Agents",
+    "license": "MIT",
+    "author": "@briine",
+    "type": "module",
+    "main": "dist/index.mjs",
+    "types": "dist/index.d.ts",
+    "files": [
+        "dist"
+    ],
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.mjs"
+        }
+    },
+    "scripts": {
+        "build": "npm run build:js && npm run build:types",
+        "build:js": "tsup src/index.ts --format esm --minify",
+        "build:types": "tsc --emitDeclarationOnly",
+        "prepublishOnly": "npm run build"
+    },
+    "engines": {
+        "node": ">=20"
+    },
+    "keywords": [
+        "sdk",
+        "websocket"
+    ],
+    "dependencies": {
+        "ws": "^8.21.1"
+    },
+    "devDependencies": {
+        "@types/ws": "^8.18.1",
+        "tsup": "^8.5.1",
+        "typescript": "^7.0.2"
+    }
+}
