@@ -13,8 +13,11 @@
     "declarationMap": true,
     "sourceMap": true,
 
+    "allowImportingTsExtensions": true,
+    "emitDeclarationOnly": true,
+
     "types": ["node"]
   },
-  "include": ["src"],
-  "exclude": ["test"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["test", "node_modules"]
 }

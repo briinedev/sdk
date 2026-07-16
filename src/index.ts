@@ -11,11 +11,23 @@ export type Stack = {
     orange: number;
 };
 
+export type Attack = {
+    id: string;
+    name: string;
+    element: string;
+};
+
 export type ActionRequest = {
     id: string,
-    type: string,
+    type: 'attack' | 'spell' | 'defend',
     source: string,
     target?: string[],
+};
+
+export type Action = {
+    action: Attack | Spell | 'defend';
+    source: string | Ally;
+    target: string | string[] | Character | Character[];
 };
 
 export type AuthResponse = {
@@ -72,7 +84,7 @@ export type Character = {
     isDefended: boolean,
     canAct: boolean,
     stamina: number,
-    attacks: { id: string, name: string, element: string }[],
+    attacks: Attack[],
     effects: { name: string, description: string, active: boolean }[],
 };
 
@@ -101,11 +113,18 @@ export type Spell = {
     available?: boolean
 };
 
-export type GameStatus = {
+export type ServerStatus = {
     ally: Ally[],
+    sources: Ally[],
     enemy: Character[],
+    targets: Character[],
     stack: Stack,
-};
+}
+
+export type MatchStatus = {
+    sources: Ally[],
+    targets: Character[],
+} & ServerStatus;
 
 export class AgentConnection {
     private readonly host: string;
@@ -351,24 +370,24 @@ export class AgentConnection {
         this.send({ type: 'leave_queue' });
     }
 
-    requestGameStatus(gameId: string) {
-        this.send({ type: 'game_status', gameId });
+    requestMatchStatus(matchId: string) {
+        this.send({ type: 'match_status', matchId });
     }
 
-    joinGame(gameId: string) {
-        this.send({ type: 'join', gameId });
+    joinMatch(matchId: string) {
+        this.send({ type: 'join', matchId });
     }
 
-    pickCharacter(gameId: string, characterId: string) {
-        this.send({ type: 'pick', gameId, characterId });
+    pickCharacter(matchId: string, characterId: string) {
+        this.send({ type: 'pick', matchId, characterId });
     }
 
-    setSpellPool(gameId: string, spellPool: string[]) {
-        this.send({ type: 'set_spell_pool', gameId, spellPool });
+    setSpellPool(matchId: string, spellPool: string[]) {
+        this.send({ type: 'set_spell_pool', matchId, spellPool });
     }
 
-    doAction(gameId: string, action: ActionRequest) {
-        this.send({ type: 'do_action', gameId, action });
+    doAction(matchId: string, action: ActionRequest) {
+        this.send({ type: 'do_action', matchId, action });
     }
 
     /* === HOOKS === */
@@ -396,74 +415,74 @@ export class AgentConnection {
     }
 
     /**
-     * Fires handler, passing gameId, when a PvP or CPU challenge is ready to be joined.
+     * Fires handler, passing matchId, when a PvP or CPU challenge is ready to be joined.
      */
-    onQueuePop(handler: (gameId: string) => void) {
+    onQueuePop(handler: (matchId: string) => void) {
         this.ensureConnected();
 
         this.ws!.on('message', data => {
             const message = JSON.parse(data.toString());
-            if (message.type === 'prompt' && message.action === 'join') handler(message.gameId);
+            if (message.type === 'prompt' && message.action === 'join') handler(message.matchId);
         });
     }
 
     /**
      * Fires handler when agent is prompted to choose a character.
      */
-    onCharacterPrompt(handler: (gameId: string, availableCharacters: Character[], ally: Character[], enemy: Character[]) => void) {
+    onCharacterPrompt(handler: (matchId: string, availableCharacters: Character[], ally: Character[], enemy: Character[]) => void) {
         this.ensureConnected();
 
         this.ws!.on('message', data => {
             const message = JSON.parse(data.toString());
-            if (message.type === 'prompt' && message.action === 'pick') handler(message.gameId, message.available, message.ally, message.enemy);
+            if (message.type === 'prompt' && message.action === 'pick') handler(message.matchId, message.available, message.ally, message.enemy);
         });
     }
 
     /**
      * Fires handler when agent is prompted to submit their shared spell pool.
      */
-    onSpellsPrompt(handler: (gameId: string, availableSpells: Spell[], ally: Character[], enemy: Character[]) => void) {
+    onSpellsPrompt(handler: (matchId: string, availableSpells: Spell[], ally: Character[], enemy: Character[]) => void) {
         this.ensureConnected();
 
         this.ws!.on('message', data => {
             const message = JSON.parse(data.toString());
-            if (message.type === 'prompt' && message.action === 'set_spell_pool') handler(message.gameId, message.available, message.ally, message.enemy);
+            if (message.type === 'prompt' && message.action === 'set_spell_pool') handler(message.matchId, message.available, message.ally, message.enemy);
         });
     }
 
     /**
-     * Fires handler when game status is sent by server.
+     * Fires handler when match status is sent by server.
      */
-    onGameStatus(handler: (gameId: string, status: GameStatus) => void) {
+    onMatchStatus(handler: (matchId: string, status: ServerStatus) => void) {
         this.ensureConnected();
 
         this.ws!.on('message', data => {
             const message = JSON.parse(data.toString());
-            if (message.type === 'game_status') handler(message.gameId, message.status);
+            if (message.type === 'match_status') handler(message.matchId, message.status);
         });
     }
 
     /**
-     * Fires handler when agent is prompted to take an action in game.
+     * Fires handler when agent is prompted to take an action in match.
      */
-    onActionPrompt(handler: (gameId: string, status: GameStatus) => void) {
+    onActionPrompt(handler: (matchId: string, status: ServerStatus) => void) {
         this.ensureConnected();
 
         this.ws!.on('message', data => {
             const message = JSON.parse(data.toString());
-            if (message.type === 'prompt' && message.action === 'do_action') handler(message.gameId, message.status);
+            if (message.type === 'prompt' && message.action === 'do_action') handler(message.matchId, message.status);
         });
     }
 
     /**
-     * Fires handler when a game is completed.
+     * Fires handler when a match is completed.
      */
-    onGameOver(handler: (gameId: string, status: GameStatus) => void) {
+    onMatchOver(handler: (matchId: string, status: ServerStatus) => void) {
         this.ensureConnected();
 
         this.ws!.on('message', data => {
             const message = JSON.parse(data.toString());
-            if (message.type === 'game_over') handler(message.gameId, message.status);
+            if (message.type === 'match_over') handler(message.matchId, message.status);
         });
     }
 
@@ -495,38 +514,67 @@ export default abstract class Agent {
         this.stayQueued = stayQueued;
     }
 
-    abstract act(status: GameStatus): ActionRequest;
-    abstract chooseCharacter(availableCharacters: Character[], ally: Character[], enemy: Character[]): string;
-    abstract chooseSpells(available: Spell[], ally: Character[], enemy: Character[]): string[];
+    abstract chooseAction(status: MatchStatus): Action | ActionRequest;
+    abstract chooseCharacter(available: Character[], ally: Character[], enemy: Character[]): string | Character;
+    abstract chooseSpells(available: Spell[], ally: Character[], enemy: Character[]): string[] | Spell[];
 
     protected connect(host = 'arena.briine.workers.dev'): AgentConnection {
         const connection = new AgentConnection(host, this.username, this.agentName, this.agentVersion, this.secret);
 
         connection.connect().then(() => {
-            connection.onActionPrompt((gameId, status) => {
-                const action = this.act(status);
-                connection.doAction(gameId, action);
+            connection.onActionPrompt((matchId, status) => {
+                status.sources = status.ally.filter(c => c.canAct);
+                status.targets = status.enemy.filter(c => c.hp > 0);
+
+                const action = this.chooseAction(status);
+
+                if (action.hasOwnProperty('action')) {
+                    const actionWithAction = action as Action;
+
+                    // If the action is of type Action, we need to convert it to ActionRequest
+                    const correctedAction: ActionRequest = {
+                        id: typeof actionWithAction.action === 'string' ? actionWithAction.action : actionWithAction.action.id,
+                        type: actionWithAction.action === 'defend' ? 'defend' : (actionWithAction.action).hasOwnProperty('stackCost') ? 'spell' : 'attack',
+                        source: typeof action.source === 'string' ? action.source : action.source.id,
+                        target: Array.isArray(actionWithAction.target)
+                            ? actionWithAction.target.map(t => typeof t === 'string' ? t : t.id)
+                            : (actionWithAction.target ? [typeof actionWithAction.target === 'string' ? actionWithAction.target : actionWithAction.target.id] : undefined),
+                    };
+                    console.log(correctedAction);
+                    connection.doAction(matchId, correctedAction);
+                } else {
+                    // If the action is already of type ActionRequest, we can use it directly
+                    connection.doAction(matchId, action as ActionRequest);
+                }
             });
 
-            connection.onCharacterPrompt((gameId, availableCharacters, ally, enemy) => {
-                const characterId = this.chooseCharacter(availableCharacters, ally, enemy);
-                connection.pickCharacter(gameId, characterId);
+            connection.onCharacterPrompt((matchId, available, ally, enemy) => {
+                const character = this.chooseCharacter(available, ally, enemy);
+                if (typeof character === 'string') {
+                    connection.pickCharacter(matchId, character);
+                } else {
+                    connection.pickCharacter(matchId, character.id);
+                }
             });
 
-            connection.onSpellsPrompt((gameId, available, ally, enemy) => {
+            connection.onSpellsPrompt((matchId, available, ally, enemy) => {
                 const spellPool = this.chooseSpells(available, ally, enemy);
-                connection.setSpellPool(gameId, spellPool);
+                const correctedSpellPool = spellPool.map(s => typeof s === 'string' ? s : s.id);
+                connection.setSpellPool(matchId, correctedSpellPool);
             });
 
-            connection.onQueuePop((gameId) => {
-                console.log(`Joining game ${gameId}...`);
-                connection.joinGame(gameId);
+            connection.onQueuePop((matchId) => {
+                console.log(`Joining match ${matchId}...`);
+                connection.joinMatch(matchId);
             });
 
-            connection.onGameOver((gameId, status) => {
-                console.log(`Game ${gameId} is over. Final status:`, status);
+            connection.onMatchOver((matchId, status) => {
+                console.log(`Match ${matchId} is over. Final status:`, status);
                 if (this.stayQueued) {
                     connection.joinQueue();
+                } else {
+                    connection.disconnect();
+                    process.exit(0);
                 }
             });
 
