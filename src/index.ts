@@ -124,7 +124,42 @@ export type ServerStatus = {
 export type MatchStatus = {
     sources: Ally[],
     targets: Character[],
+    livingAllies: Ally[],
+    livingEnemies: Character[],
+    fallenAllies: Ally[],
+    fallenEnemies: Character[],
+    defendedAllies: Ally[],
+    undefendedAllies: Ally[],
+    castableSpells: Array<{ source: Ally; spell: AllySpell }>,
+    attackOptions: Array<{ source: Ally; attack: Attack }>,
 } & ServerStatus;
+
+function toMatchStatus(status: ServerStatus): MatchStatus {
+    const sources = status.ally.filter(character => character.canAct);
+    const targets = status.enemy.filter(character => character.hp > 0);
+    const livingAllies = status.ally.filter(character => character.hp > 0);
+    const livingEnemies = status.enemy.filter(character => character.hp > 0);
+    const fallenAllies = status.ally.filter(character => character.hp <= 0);
+    const fallenEnemies = status.enemy.filter(character => character.hp <= 0);
+    const defendedAllies = livingAllies.filter(character => character.isDefended);
+    const undefendedAllies = livingAllies.filter(character => !character.isDefended);
+    const castableSpells = sources.flatMap(source => source.spells.filter(spell => spell.available).map(spell => ({ source, spell })));
+    const attackOptions = sources.flatMap(source => source.attacks.map(attack => ({ source, attack })));
+
+    return {
+        ...status,
+        sources,
+        targets,
+        livingAllies,
+        livingEnemies,
+        fallenAllies,
+        fallenEnemies,
+        defendedAllies,
+        undefendedAllies,
+        castableSpells,
+        attackOptions,
+    };
+}
 
 export class AgentConnection {
     private readonly host: string;
@@ -523,10 +558,7 @@ export default abstract class Agent {
 
         connection.connect().then(() => {
             connection.onActionPrompt((matchId, status) => {
-                status.sources = status.ally.filter(c => c.canAct);
-                status.targets = status.enemy.filter(c => c.hp > 0);
-
-                const action = this.chooseAction(status);
+                const action = this.chooseAction(toMatchStatus(status));
 
                 if (action.hasOwnProperty('action')) {
                     const actionWithAction = action as Action;
