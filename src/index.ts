@@ -131,8 +131,133 @@ export type MatchStatus = {
     defendedAllies: Ally[],
     undefendedAllies: Ally[],
     castableSpells: Array<{ source: Ally; spell: AllySpell }>,
+    supportSpellOptions: Array<{ source: Ally; spell: AllySpell }>,
+    offensiveSpellOptions: Array<{ source: Ally; spell: AllySpell }>,
+    utilitySpellOptions: Array<{ source: Ally; spell: AllySpell }>,
+    multiTargetSpellOptions: Array<{ source: Ally; spell: AllySpell }>,
+    singleTargetSpellOptions: Array<{ source: Ally; spell: AllySpell }>,
     attackOptions: Array<{ source: Ally; attack: Attack }>,
+    allyById: Record<string, Ally>,
+    enemyById: Record<string, Character>,
+    sourceById: Record<string, Ally>,
+    targetById: Record<string, Character>,
+    castableSpellsBySourceId: Record<string, AllySpell[]>,
+    attacksBySourceId: Record<string, Attack[]>,
+    allyHpTotal: number,
+    enemyHpTotal: number,
+    allyHpAverage: number,
+    enemyHpAverage: number,
+    allyStaminaTotal: number,
+    enemyStaminaTotal: number,
+    lowestHpAlly?: Ally,
+    highestHpAlly?: Ally,
+    lowestHpEnemy?: Character,
+    highestHpEnemy?: Character,
+    highestStaminaEnemy?: Character,
+    lowestStaminaEnemy?: Character,
+    enemiesByLowestHp: Character[],
+    enemiesByHighestStamina: Character[],
+    alliesByLowestHp: Ally[],
+    alliesByHighestStamina: Ally[],
+    vulnerableEnemies: Character[],
+    defendedEnemies: Character[],
+    activeEnemies: Character[],
+    actionEconomyLead: number,
+    hpLead: number,
+    hasActionEconomyLead: boolean,
+    hasHpLead: boolean,
+    hasCastableSpells: boolean,
+    hasMultiTargetSpell: boolean,
+    canAnySourceAct: boolean,
 } & ServerStatus;
+
+function sumHp(characters: Character[]): number {
+    return characters.reduce((total, character) => total + Math.max(character.hp, 0), 0);
+}
+
+function averageHp(characters: Character[]): number {
+    return characters.length > 0 ? sumHp(characters) / characters.length : 0;
+}
+
+function sumStamina(characters: Character[]): number {
+    return characters.reduce((total, character) => total + Math.max(character.stamina, 0), 0);
+}
+
+function joinSpellText(spell: Spell): string {
+    return [spell.id, spell.element, spell.description, ...spell.effects.map(effect => `${effect.name} ${effect.description}`)].join(' ').toLowerCase();
+}
+
+function includesAny(text: string, terms: string[]): boolean {
+    return terms.some(term => text.includes(term));
+}
+
+function classifySpell(spell: Spell): 'support' | 'offensive' | 'utility' {
+    const text = joinSpellText(spell);
+    const supportTerms = ['heal', 'restore', 'ward', 'shield', 'guard', 'protect', 'cleanse', 'revive', 'resurrect', 'support', 'renew'];
+    const offensiveTerms = ['damage', 'burn', 'poison', 'bleed', 'curse', 'drain', 'steal', 'strike', 'blast', 'shock', 'weaken', 'vulnerable', 'stun', 'slow'];
+
+    const support = includesAny(text, supportTerms);
+    const offensive = includesAny(text, offensiveTerms);
+
+    if (support && !offensive) {
+        return 'support';
+    }
+
+    if (offensive && !support) {
+        return 'offensive';
+    }
+
+    return 'utility';
+}
+
+function indexById<T extends { id: string }>(items: T[]): Record<string, T> {
+    return items.reduce<Record<string, T>>((acc, item) => {
+        acc[item.id] = item;
+        return acc;
+    }, {});
+}
+
+function groupCastableSpellsBySourceId(castableSpells: Array<{ source: Ally; spell: AllySpell }>): Record<string, AllySpell[]> {
+    return castableSpells.reduce<Record<string, AllySpell[]>>((acc, option) => {
+        if (!acc[option.source.id]) {
+            acc[option.source.id] = [];
+        }
+
+        acc[option.source.id].push(option.spell);
+        return acc;
+    }, {});
+}
+
+function groupAttacksBySourceId(attackOptions: Array<{ source: Ally; attack: Attack }>): Record<string, Attack[]> {
+    return attackOptions.reduce<Record<string, Attack[]>>((acc, option) => {
+        if (!acc[option.source.id]) {
+            acc[option.source.id] = [];
+        }
+
+        acc[option.source.id].push(option.attack);
+        return acc;
+    }, {});
+}
+
+function bestBy<T>(items: T[], score: (item: T) => number): T | undefined {
+    return items.reduce<T | undefined>((best, item) => {
+        if (!best || score(item) > score(best)) {
+            return item;
+        }
+
+        return best;
+    }, undefined);
+}
+
+function worstBy<T>(items: T[], score: (item: T) => number): T | undefined {
+    return items.reduce<T | undefined>((worst, item) => {
+        if (!worst || score(item) < score(worst)) {
+            return item;
+        }
+
+        return worst;
+    }, undefined);
+}
 
 function toMatchStatus(status: ServerStatus): MatchStatus {
     const sources = status.ally.filter(character => character.canAct);
@@ -144,7 +269,44 @@ function toMatchStatus(status: ServerStatus): MatchStatus {
     const defendedAllies = livingAllies.filter(character => character.isDefended);
     const undefendedAllies = livingAllies.filter(character => !character.isDefended);
     const castableSpells = sources.flatMap(source => source.spells.filter(spell => spell.available).map(spell => ({ source, spell })));
+    const supportSpellOptions = castableSpells.filter(option => classifySpell(option.spell) === 'support');
+    const offensiveSpellOptions = castableSpells.filter(option => classifySpell(option.spell) === 'offensive');
+    const utilitySpellOptions = castableSpells.filter(option => classifySpell(option.spell) === 'utility');
+    const multiTargetSpellOptions = castableSpells.filter(option => (option.spell.maxTargets ?? 1) > 1);
+    const singleTargetSpellOptions = castableSpells.filter(option => (option.spell.maxTargets ?? 1) <= 1);
     const attackOptions = sources.flatMap(source => source.attacks.map(attack => ({ source, attack })));
+    const allyById = indexById(status.ally);
+    const enemyById = indexById(status.enemy);
+    const sourceById = indexById(sources);
+    const targetById = indexById(targets);
+    const castableSpellsBySourceId = groupCastableSpellsBySourceId(castableSpells);
+    const attacksBySourceId = groupAttacksBySourceId(attackOptions);
+    const allyHpTotal = sumHp(livingAllies);
+    const enemyHpTotal = sumHp(livingEnemies);
+    const allyHpAverage = averageHp(livingAllies);
+    const enemyHpAverage = averageHp(livingEnemies);
+    const allyStaminaTotal = sumStamina(livingAllies);
+    const enemyStaminaTotal = sumStamina(livingEnemies);
+    const lowestHpAlly = worstBy(livingAllies, character => character.hp);
+    const highestHpAlly = bestBy(livingAllies, character => character.hp);
+    const lowestHpEnemy = worstBy(livingEnemies, character => character.hp);
+    const highestHpEnemy = bestBy(livingEnemies, character => character.hp);
+    const highestStaminaEnemy = bestBy(livingEnemies, character => character.stamina);
+    const lowestStaminaEnemy = worstBy(livingEnemies, character => character.stamina);
+    const enemiesByLowestHp = [...livingEnemies].sort((left, right) => left.hp - right.hp);
+    const enemiesByHighestStamina = [...livingEnemies].sort((left, right) => right.stamina - left.stamina);
+    const alliesByLowestHp = [...livingAllies].sort((left, right) => left.hp - right.hp);
+    const alliesByHighestStamina = [...livingAllies].sort((left, right) => right.stamina - left.stamina);
+    const vulnerableEnemies = livingEnemies.filter(character => !character.isDefended);
+    const defendedEnemies = livingEnemies.filter(character => character.isDefended);
+    const activeEnemies = livingEnemies.filter(character => character.canAct);
+    const actionEconomyLead = sources.length - activeEnemies.length;
+    const hpLead = allyHpTotal - enemyHpTotal;
+    const hasActionEconomyLead = actionEconomyLead > 0;
+    const hasHpLead = hpLead > 0;
+    const hasCastableSpells = castableSpells.length > 0;
+    const hasMultiTargetSpell = multiTargetSpellOptions.length > 0;
+    const canAnySourceAct = sources.length > 0;
 
     return {
         ...status,
@@ -157,7 +319,44 @@ function toMatchStatus(status: ServerStatus): MatchStatus {
         defendedAllies,
         undefendedAllies,
         castableSpells,
+        supportSpellOptions,
+        offensiveSpellOptions,
+        utilitySpellOptions,
+        multiTargetSpellOptions,
+        singleTargetSpellOptions,
         attackOptions,
+        allyById,
+        enemyById,
+        sourceById,
+        targetById,
+        castableSpellsBySourceId,
+        attacksBySourceId,
+        allyHpTotal,
+        enemyHpTotal,
+        allyHpAverage,
+        enemyHpAverage,
+        allyStaminaTotal,
+        enemyStaminaTotal,
+        lowestHpAlly,
+        highestHpAlly,
+        lowestHpEnemy,
+        highestHpEnemy,
+        highestStaminaEnemy,
+        lowestStaminaEnemy,
+        enemiesByLowestHp,
+        enemiesByHighestStamina,
+        alliesByLowestHp,
+        alliesByHighestStamina,
+        vulnerableEnemies,
+        defendedEnemies,
+        activeEnemies,
+        actionEconomyLead,
+        hpLead,
+        hasActionEconomyLead,
+        hasHpLead,
+        hasCastableSpells,
+        hasMultiTargetSpell,
+        canAnySourceAct,
     };
 }
 
