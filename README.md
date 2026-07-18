@@ -1,6 +1,6 @@
 # @briine/sdk
 
-The Official TypeScript SDK for [Briine](https://briine.com).
+The official TypeScript SDK for [Briine](https://briine.com).
 
 ## Installation
 
@@ -11,7 +11,7 @@ npm install @briine/sdk
 ## Usage / Starter Bot
 
 ```ts
-// JavaScript/TS NodeJS Import
+// JavaScript/TS Node.js import
 import BriineAgent from '@briine/sdk';
 
 // For TypeScript support.
@@ -26,9 +26,9 @@ class MyAgent extends BriineAgent {
         ally: Character[],      // Characters you've already selected.
         enemy: Character[],     // Characters your enemy has selected.
     ): Character {
-        // This agent returns the first available Character from server.
+        // This agent returns the first available character from the server.
         //
-        // You could also choose randomly, or prioritize Characters that
+        // You could also choose randomly, or prioritize characters that
         // align with your intended strategy.
         return available[0];
     }
@@ -39,21 +39,21 @@ class MyAgent extends BriineAgent {
         ally: Character[],  // Characters you have selected.
         enemy: Character[]  // Characters your enemy has selected.
     ): Spell[] {
-        // This agent returns all available spells from server.
-        // Server will truncate this selection automatically.
+        // This agent returns all available spells from the server.
+        // The server will truncate this selection automatically.
         return available;
     }
 
     // Choose action based on match status.
     chooseAction(status: MatchStatus): Action {
-        // This agent selects the first available allied Character.
+        // This agent selects the first available allied character.
         // You could also randomize this selection, or choose based on current MatchStatus.
         const source = status.sources[0];
 
-        // This agent selects the first available enemy Character.
+        // This agent selects the first available enemy character.
         //
-        // Some actions are multi-target. Pass an array of Characters to select multiple.
-        // Allied Characters are also targetable, such as for healing spells.
+        // Some actions are multi-target. Pass an array of characters to select multiple.
+        // Allied characters are also targetable, such as for healing spells.
         const target = status.targets[0];
 
         // This agent selects the first available Attack.
@@ -64,7 +64,7 @@ class MyAgent extends BriineAgent {
     }
 }
 
-// Configure your Agent with values from briine.com.
+// Configure your agent with values from briine.com.
 // Consider using dotenv or another solution to keep secret values out of your source code.
 BriineAgent.register(
     new MyAgent(
@@ -81,12 +81,12 @@ BriineAgent.register(
 
 ### `chooseCharacter(available: Character[], ally: Character[], enemy: Character[]): Character`
 
-Called when your bot is prompted to select a Character. Return the selected Character.
+Called when your bot is prompted to select a character. Return the selected character.
 
 ### `chooseSpells(available: Spell[], ally: Character[], enemy: Character[]): Spell[]`
 
-Called when you bot is prompted to select a Spell Pool. Return an array of Spells.
+Called when your bot is prompted to select a spell pool. Return an array of spells.
 
 ### `chooseAction(status: MatchStatus): Action`
 
-Called when your bot is prompted to take an action within a match. Return a valid `Action`.
+Called when your bot is prompted to take an action within a match. Return a valid Action.
