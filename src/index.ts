@@ -642,7 +642,7 @@ export class AgentConnection {
     }
 
     requestMatchStatus(matchId: string) {
-        this.send({ type: 'game_status', matchId });
+        this.send({ type: 'match_status', matchId });
     }
 
     joinMatch(matchId: string) {
@@ -729,7 +729,7 @@ export class AgentConnection {
 
         this.ws!.on('message', data => {
             const message = JSON.parse(data.toString());
-            if (message.type === 'game_status') handler(message.matchId, message.status);
+            if (message.type === 'match_status') handler(message.matchId, message.status);
         });
     }
 
