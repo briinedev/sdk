@@ -108,7 +108,7 @@ export type Spell = {
     maxTargets: number,
     stamina: number,
     stackCost: number,
-    effects: { name: string, description: string }[],
+    effects?: { name: string, description: string }[],
     description: string,
     available?: boolean
 };
@@ -184,7 +184,7 @@ function sumStamina(characters: Character[]): number {
 }
 
 function joinSpellText(spell: Spell): string {
-    return [spell.id, spell.element, spell.description, ...spell.effects.map(effect => `${effect.name} ${effect.description}`)].join(' ').toLowerCase();
+    return [spell.id, spell.element, spell.description, ...(spell.effects ? spell.effects.map(effect => `${effect.name} ${effect.description}`) : [])].join(' ').toLowerCase();
 }
 
 function includesAny(text: string, terms: string[]): boolean {
