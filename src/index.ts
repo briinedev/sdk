@@ -5,8 +5,8 @@ export type Stack = {
     blue:   number;
     green:  number;
     yellow: number;
-    white:  number;
-    black:  number;
+    light:  number;
+    dark:   number;
     purple: number;
     orange: number;
 };
