@@ -66,6 +66,7 @@ export type AgentVersionResponse = {
 
 export type ServerMessage =
     { type: 'error', message: string } |
+    { type: 'match_over', matchId: string, reason?: string, status?: any } |
     {};
 
 export type ServerPrompt =
@@ -457,7 +458,6 @@ export class AgentConnection {
 
         const data = await response.json() as AuthResponse;
         if (!response.ok || !data.success || !data.token) {
-            console.log(response, data);
             throw new Error(data.error ?? 'Failed to acquire auth token');
         }
 
@@ -486,9 +486,46 @@ export class AgentConnection {
         });
     }
 
-    disconnect() {
+    disconnect(): Promise<void> {
         this.ensureConnected();
-        this.ws?.close();
+
+        const ws = this.ws;
+        this.ws = undefined;
+
+        if (!ws) {
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+            let settled = false;
+            const finish = () => {
+                if (settled) return;
+                settled = true;
+                resolve();
+            };
+
+            ws.removeAllListeners('message');
+            ws.once('close', finish);
+            ws.once('error', finish);
+
+            try {
+                ws.close();
+            } catch (err) {
+                finish();
+                return;
+            }
+
+            // If the close handshake stalls, force-close after a short grace period.
+            const timeout = setTimeout(() => {
+                try {
+                    ws.terminate();
+                } catch (err) {}
+                finish();
+            }, 500);
+
+            // Avoid keeping the process alive only for this timeout.
+            timeout.unref();
+        });
     }
 
     setAuthToken(token: string) {
@@ -605,7 +642,7 @@ export class AgentConnection {
     }
 
     requestMatchStatus(matchId: string) {
-        this.send({ type: 'match_status', matchId });
+        this.send({ type: 'game_status', matchId });
     }
 
     joinMatch(matchId: string) {
@@ -692,7 +729,7 @@ export class AgentConnection {
 
         this.ws!.on('message', data => {
             const message = JSON.parse(data.toString());
-            if (message.type === 'match_status') handler(message.matchId, message.status);
+            if (message.type === 'game_status') handler(message.matchId, message.status);
         });
     }
 
@@ -771,7 +808,6 @@ export default abstract class Agent {
                             ? actionWithAction.target.map(t => typeof t === 'string' ? t : t.id)
                             : (actionWithAction.target ? [typeof actionWithAction.target === 'string' ? actionWithAction.target : actionWithAction.target.id] : undefined),
                     };
-                    console.log(correctedAction);
                     connection.doAction(matchId, correctedAction);
                 } else {
                     // If the action is already of type ActionRequest, we can use it directly
@@ -804,8 +840,7 @@ export default abstract class Agent {
                 if (this.stayQueued) {
                     connection.joinQueue();
                 } else {
-                    connection.disconnect();
-                    process.exit(0);
+                    connection.disconnect().catch(() => {});
                 }
             });
 
