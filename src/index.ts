@@ -795,6 +795,7 @@ export default abstract class Agent {
         connection.connect().then(() => {
             connection.onActionPrompt((matchId, status) => {
                 const action = this.chooseAction(toMatchStatus(status));
+                console.log(matchId, 'Action:', JSON.stringify(action), 'Status:', JSON.stringify(status));
 
                 if (action.hasOwnProperty('action')) {
                     const actionWithAction = action as Action;
