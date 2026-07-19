@@ -789,7 +789,7 @@ export default abstract class Agent {
     abstract chooseCharacter(available: Character[], ally: Character[], enemy: Character[]): string | Character;
     abstract chooseSpells(available: Spell[], ally: Character[], enemy: Character[]): string[] | Spell[];
 
-    protected connect(host = 'arena.briine.workers.dev'): AgentConnection {
+    protected connect(host = 'arena.briine.com'): AgentConnection {
         const connection = new AgentConnection(host, this.username, this.agentName, this.agentVersion, this.secret);
 
         connection.connect().then(() => {
